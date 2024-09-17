@@ -1,0 +1,137 @@
+import numpy as np
+import random
+
+# Utility functions
+def misplaced_tiles(state, goal_state):
+    """Calculates the number of misplaced tiles compared to the goal state."""
+    return sum(1 for i in range(9) if state[i] != goal_state[i] and state[i] != 0)
+
+def neighbors(state):
+    """Generate all possible neighboring states by sliding tiles."""
+    idx = state.index(0)
+    row, col = idx // 3, idx % 3
+    moves = []
+    
+    if row > 0:  # Move blank up
+        moves.append(idx - 3)
+    if row < 2:  # Move blank down
+        moves.append(idx + 3)
+    if col > 0:  # Move blank left
+        moves.append(idx - 1)
+    if col < 2:  # Move blank right
+        moves.append(idx + 1)
+    
+    neighbor_states = []
+    for move in moves:
+        new_state = state[:]
+        new_state[idx], new_state[move] = new_state[move], new_state[idx]
+        neighbor_states.append(new_state)
+    
+    return neighbor_states
+
+# Simulated Annealing Algorithm
+def simulated_annealing(initial_state, goal_state, max_iterations=10000, temperature=100, cooling_rate=0.99):
+    state = initial_state[:]
+    current_cost = misplaced_tiles(state, goal_state)
+    
+    for iteration in range(max_iterations):
+        if current_cost == 0:
+            return state, iteration
+        
+        temp = max(temperature * (cooling_rate ** iteration), 0.1)
+        neighbor = random.choice(neighbors(state))
+        neighbor_cost = misplaced_tiles(neighbor, goal_state)
+        
+        if neighbor_cost < current_cost or random.uniform(0, 1) < np.exp((current_cost - neighbor_cost) / temp):
+            state = neighbor
+            current_cost = neighbor_cost
+    
+    return state, max_iterations
+
+# Genetic Algorithm
+def genetic_algorithm(initial_population, goal_state, population_size=100, generations=1000, mutation_rate=0.1):
+    population = initial_population
+    for generation in range(generations):
+        fitness_scores = [misplaced_tiles(individual, goal_state) for individual in population]
+        if min(fitness_scores) == 0:
+            return population[fitness_scores.index(0)], generation
+        
+        # Selection (Tournament selection)
+        selected_parents = random.choices(population, weights=[1 / (score + 1) for score in fitness_scores], k=population_size)
+        
+        # Crossover
+        offspring = []
+        for i in range(0, population_size, 2):
+            parent1, parent2 = selected_parents[i], selected_parents[i + 1]
+            crossover_point = random.randint(1, 8)
+            child1 = parent1[:crossover_point] + parent2[crossover_point:]
+            child2 = parent2[:crossover_point] + parent1[crossover_point:]
+            offspring.extend([child1, child2])
+        
+        # Mutation
+        for child in offspring:
+            if random.uniform(0, 1) < mutation_rate:
+                idx1, idx2 = random.sample(range(9), 2)
+                child[idx1], child[idx2] = child[idx2], child[idx1]
+        
+        population = offspring
+    
+    return population[0], generations
+
+# First-Choice Hill Climbing
+def first_choice_hill_climbing(initial_state, goal_state, max_iterations=10000):
+    state = initial_state[:]
+    current_cost = misplaced_tiles(state, goal_state)
+    
+    for iteration in range(max_iterations):
+        if current_cost == 0:
+            return state, iteration
+        
+        neighbor = random.choice(neighbors(state))
+        neighbor_cost = misplaced_tiles(neighbor, goal_state)
+        
+        if neighbor_cost < current_cost:
+            state = neighbor
+            current_cost = neighbor_cost
+    
+    return state, max_iterations
+
+# Random-Restart Hill Climbing
+def random_restart_hill_climbing(goal_state, max_restarts=100, max_iterations=1000):
+    best_state = None
+    best_cost = float('inf')
+    
+    for restart in range(max_restarts):
+        initial_state = random.sample(range(9), 9)
+        state, iterations = first_choice_hill_climbing(initial_state, goal_state, max_iterations)
+        cost = misplaced_tiles(state, goal_state)
+        
+        if cost < best_cost:
+            best_state = state
+            best_cost = cost
+        
+        if best_cost == 0:
+            return best_state, restart, iterations
+    
+    return best_state, max_restarts, max_iterations
+
+# Test Example
+goal_state = [1, 2, 3, 4, 5, 6, 7, 8, 0]
+initial_state = random.sample(range(9), 9)
+
+# Simulated Annealing
+solved_state, iterations = simulated_annealing(initial_state, goal_state)
+print(f"Simulated Annealing: Solved state in {iterations} iterations")
+
+# Genetic Algorithm
+initial_population = [random.sample(range(9), 9) for _ in range(100)]
+solved_state, generations = genetic_algorithm(initial_population, goal_state)
+print(f"Genetic Algorithm: Solved state in {generations} generations")
+
+# First Choice Hill Climbing
+solved_state, iterations = first_choice_hill_climbing(initial_state, goal_state)
+print(f"First Choice Hill Climbing: Solved state in {iterations} iterations")
+
+# Random Restart Hill Climbing
+solved_state, restarts, iterations = random_restart_hill_climbing(goal_state)
+print(f"Random Restart Hill Climbing: Solved state after {restarts} restarts and {iterations} iterations")
